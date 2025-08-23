@@ -6,6 +6,12 @@ import {
 import { get_encoding } from "tiktoken";
 import { log } from "./log";
 import { sessionUsageCache, Usage } from "./cache";
+import {
+  parseModelCommand,
+  validateModelExists,
+  getAvailableModels,
+  removeModelCommandMessage
+} from "../middleware/commandParser";
 
 const enc = get_encoding("cl100k_base");
 
@@ -147,6 +153,40 @@ export const router = async (req: any, _res: any, config: any) => {
       req.sessionId = parts[1];
     }
   }
+
+  // 🆕 处理/model命令
+  try {
+    const modelCommand = parseModelCommand(req, config);
+    if (modelCommand) {
+      log('Processing /model command:', modelCommand);
+      
+      // 验证模型是否存在
+      if (validateModelExists(modelCommand.provider, modelCommand.model, config)) {
+        const targetModel = `${modelCommand.provider},${modelCommand.model}`;
+        req.body.model = targetModel;
+        
+        // 从消息中移除/model命令，避免发送给AI模型
+        req.body.messages = removeModelCommandMessage(req.body.messages);
+        
+        log('Model switched to:', targetModel);
+        return;
+      } else {
+        // 模型不存在，抛出错误
+        const availableModels = getAvailableModels(config);
+        const errorMessage = `模型 ${modelCommand.provider},${modelCommand.model} 在配置中不存在。\n\n可用的模型：\n${availableModels}`;
+        throw new Error(errorMessage);
+      }
+    }
+  } catch (error: any) {
+    // 如果是/model命令相关的错误，记录并重新抛出
+    if (error.message.includes('模型') || error.message.includes('命令格式错误')) {
+      log('Model command error:', error.message);
+      throw error;
+    }
+    // 其他错误只记录，不影响正常路由流程
+    log('Model command parsing error (ignored):', error.message);
+  }
+
   const lastMessageUsage = sessionUsageCache.get(req.sessionId);
   const { messages, system = [], tools }: MessageCreateParamsBase = req.body;
   try {

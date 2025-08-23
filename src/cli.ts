@@ -2,6 +2,7 @@
 import { run } from "./index";
 import { showStatus } from "./utils/status";
 import { executeCodeCommand } from "./utils/codeCommand";
+import { executeModeCommand, showAvailableModels } from "./utils/modeCommand";
 import { parseStatusLineData, type StatusLineInput } from "./utils/statusline";
 import {
   cleanupPidFile,
@@ -27,6 +28,7 @@ Commands:
   statusline    Integrated statusline
   code          Execute claude command
   ui            Open the web UI in browser
+  mode          Manage model configuration
   -v, version   Show version information
   -h, help      Show help information
 
@@ -34,6 +36,9 @@ Example:
   ccr start
   ccr code "Write a Hello World"
   ccr ui
+  ccr mode deepseek,deepseek-chat
+  ccr mode --list
+  ccr mode --show
 `;
 
 async function waitForService(
@@ -269,6 +274,40 @@ async function main() {
           process.exit(1);
         }
       });
+      break;
+    case "mode":
+      // 处理 mode 命令和参数
+      const modeArgs = process.argv.slice(3);
+      
+      // 处理特殊标志
+      if (modeArgs.length === 1 && (modeArgs[0] === "--show" || modeArgs[0] === "-s")) {
+        // --show 别名：显示当前模式
+        const showResult = await executeModeCommand();
+        if (showResult.success) {
+          console.log(showResult.message);
+        } else {
+          console.error(showResult.message);
+          process.exit(1);
+        }
+      } else if (modeArgs.length === 1 && (modeArgs[0] === "--list" || modeArgs[0] === "-l")) {
+        // --list 标志：显示可用模型列表
+        const listResult = await showAvailableModels();
+        if (listResult.success) {
+          console.log(listResult.message);
+        } else {
+          console.error(listResult.message);
+          process.exit(1);
+        }
+      } else {
+        // 普通模式命令处理
+        const result = await executeModeCommand(modeArgs);
+        if (result.success) {
+          console.log(result.message);
+        } else {
+          console.error(result.message);
+          process.exit(1);
+        }
+      }
       break;
     case "-v":
     case "version":

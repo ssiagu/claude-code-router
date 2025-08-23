@@ -7,7 +7,11 @@
   },
   "scripts": {
     "build": "node scripts/build.js",
-    "release": "npm run build && npm publish"
+    "release": "npm run build && npm publish",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:verbose": "jest --verbose"
   },
   "keywords": [
     "claude",
@@ -29,10 +33,13 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.0.15",
     "esbuild": "^0.25.1",
     "fastify": "^5.4.0",
+    "jest": "^30.0.5",
     "shx": "^0.4.0",
+    "ts-jest": "^29.4.1",
     "typescript": "^5.8.2"
   },
   "publishConfig": {

@@ -131,7 +131,23 @@ async function run(options: RunOptions = {}) {
   });
   server.addHook("preHandler", async (req, reply) => {
     if (req.url.startsWith("/v1/messages")) {
-      router(req, reply, config);
+      try {
+        await router(req, reply, config);
+      } catch (error: any) {
+        // 处理/model命令相关的错误
+        if (error.message && (error.message.includes('模型') || error.message.includes('命令格式错误'))) {
+          reply.code(400).send({
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message: error.message
+            }
+          });
+          return;
+        }
+        // 其他错误继续抛出
+        throw error;
+      }
     }
   });
   server.addHook("onSend", (req, reply, payload, done) => {
