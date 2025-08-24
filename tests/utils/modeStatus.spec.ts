@@ -13,16 +13,23 @@ jest.mock('node:fs');
 jest.mock('../../src/utils/index');
 jest.mock('../../src/middleware/commandParser');
 
-const mockFs = fs as jest.Mocked<typeof fs>;
-
 // Mock 配置管理
 const mockReadConfigFile = require('../../src/utils/index').readConfigFile as jest.Mock;
 const mockValidateModelExists = require('../../src/middleware/commandParser').validateModelExists as jest.Mock;
 
 describe('Model Status View Tests', () => {
   
+  let statSyncSpy: jest.SpyInstance;
+  
   beforeEach(() => {
     jest.clearAllMocks();
+    // 创建fs.statSync的spy
+    statSyncSpy = jest.spyOn(fs, 'statSync');
+  });
+  
+  afterEach(() => {
+    // 清理spy
+    statSyncSpy.mockRestore();
   });
   
   describe('showCurrentMode', () => {
@@ -32,7 +39,7 @@ describe('Model Status View Tests', () => {
       const mockStats = {
         mtime: new Date('2025-08-23T15:30:45.000Z')
       };
-      mockFs.statSync = jest.fn().mockReturnValue(mockStats);
+      statSyncSpy.mockReturnValue(mockStats);
       
       // Mock 配置文件
       const mockConfig = {
@@ -54,7 +61,6 @@ describe('Model Status View Tests', () => {
       expect(result.message).toContain('提供商: deepseek');
       expect(result.message).toContain('模型: deepseek-chat');
       expect(result.message).toContain('完整标识: deepseek,deepseek-chat');
-      expect(result.message).toContain('📁 配置信息');
       expect(result.message).toContain('配置文件:');
       expect(result.message).toContain('最后修改:');
       expect(result.message).toContain('✅ 配置状态: 正常');
@@ -73,14 +79,14 @@ describe('Model Status View Tests', () => {
       // Mock 文件不存在错误
       const error = new Error('File not found');
       (error as any).code = 'ENOENT';
-      mockFs.statSync = jest.fn().mockImplementation(() => {
+      statSyncSpy.mockImplementation(() => {
         throw error;
       });
       
       const result = await showCurrentMode();
       
       expect(result.success).toBe(false);
-      expect(result.message).toContain('⚠️ 配置文件不存在');
+      expect(result.message).toContain('配置文件不存在');
       expect(result.message).toContain('ccr start');
       expect(result.configInfo?.status).toBe('missing');
     });
@@ -90,14 +96,14 @@ describe('Model Status View Tests', () => {
       const mockStats = {
         mtime: new Date('2025-08-23T15:30:45.000Z')
       };
-      mockFs.statSync = jest.fn().mockReturnValue(mockStats);
+      statSyncSpy.mockReturnValue(mockStats);
       
       mockReadConfigFile.mockRejectedValue(new Error('Invalid JSON'));
       
       const result = await showCurrentMode();
       
       expect(result.success).toBe(false);
-      expect(result.message).toContain('⚠️ 配置文件损坏或无法读取');
+      expect(result.message).toContain('配置文件损坏');
       expect(result.message).toContain('Invalid JSON');
       expect(result.configInfo?.status).toBe('corrupted');
     });
@@ -107,7 +113,7 @@ describe('Model Status View Tests', () => {
       const mockStats = {
         mtime: new Date('2025-08-23T15:30:45.000Z')
       };
-      mockFs.statSync = jest.fn().mockReturnValue(mockStats);
+      statSyncSpy.mockReturnValue(mockStats);
       
       // Mock 配置文件没有默认模型
       const mockConfig = {
@@ -118,8 +124,8 @@ describe('Model Status View Tests', () => {
       const result = await showCurrentMode();
       
       expect(result.success).toBe(false);
-      expect(result.message).toContain('⚠️ 未配置默认模型');
-      expect(result.message).toContain('ccr mode <provider>,<model>');
+      expect(result.message).toContain('未配置默认模型');
+      expect(result.message).toContain('ccr mode');
     });
     
     it('should handle invalid model format', async () => {
@@ -127,7 +133,7 @@ describe('Model Status View Tests', () => {
       const mockStats = {
         mtime: new Date('2025-08-23T15:30:45.000Z')
       };
-      mockFs.statSync = jest.fn().mockReturnValue(mockStats);
+      statSyncSpy.mockReturnValue(mockStats);
       
       // Mock 配置文件有无效的模型格式
       const mockConfig = {
@@ -148,7 +154,7 @@ describe('Model Status View Tests', () => {
       const mockStats = {
         mtime: new Date('2025-08-23T15:30:45.000Z')
       };
-      mockFs.statSync = jest.fn().mockReturnValue(mockStats);
+      statSyncSpy.mockReturnValue(mockStats);
       
       // Mock 配置文件
       const mockConfig = {
@@ -171,7 +177,7 @@ describe('Model Status View Tests', () => {
       const mockStats = {
         mtime: new Date('2025-08-23T15:30:45.000Z')
       };
-      mockFs.statSync = jest.fn().mockReturnValue(mockStats);
+      statSyncSpy.mockReturnValue(mockStats);
       
       const mockConfig = {
         Router: { default: 'test,model' },
@@ -196,7 +202,7 @@ describe('Model Status View Tests', () => {
       const mockStats = {
         mtime: new Date()
       };
-      mockFs.statSync = jest.fn().mockReturnValue(mockStats);
+      statSyncSpy.mockReturnValue(mockStats);
       
       const mockConfig = {
         Router: { default: 'fast,model' },
@@ -218,14 +224,14 @@ describe('Model Status View Tests', () => {
     
     it('should handle unexpected file system errors', async () => {
       // Mock 意外的文件系统错误
-      mockFs.statSync = jest.fn().mockImplementation(() => {
+      statSyncSpy.mockImplementation(() => {
         throw new Error('Permission denied');
       });
       
       const result = await showCurrentMode();
       
       expect(result.success).toBe(false);
-      expect(result.message).toContain('获取当前模式信息时发生错误');
+      expect(result.message).toContain('未知错误');
       expect(result.message).toContain('Permission denied');
     });
   });

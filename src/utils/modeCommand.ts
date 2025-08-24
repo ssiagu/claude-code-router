@@ -290,16 +290,18 @@ export async function showCurrentMode(): Promise<ModeCommandResult> {
     let configInfo;
     try {
       const stats = fs.statSync(CONFIG_FILE);
+      // 优化时间格式化，使用更快的方式
+      const date = stats.mtime;
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const hour = String(date.getHours()).padStart(2, '0');
+      const minute = String(date.getMinutes()).padStart(2, '0');
+      const second = String(date.getSeconds()).padStart(2, '0');
+      
       configInfo = {
         filePath: CONFIG_FILE,
-        lastModified: stats.mtime.toLocaleString('zh-CN', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        }),
+        lastModified: `${year}/${month}/${day} ${hour}:${minute}:${second}`,
         status: 'normal' as const
       };
     } catch (error: any) {
@@ -323,7 +325,7 @@ export async function showCurrentMode(): Promise<ModeCommandResult> {
       throw error;
     }
     
-    // 读取配置文件
+    // 读取配置文件（只读取一次）
     let config;
     try {
       config = await readConfigFile();
@@ -348,8 +350,11 @@ export async function showCurrentMode(): Promise<ModeCommandResult> {
       };
     }
     
-    // 获取当前默认模型
-    const currentModel = await getCurrentDefaultModel();
+    // 直接从配置中获取当前默认模型（避免重复读取）
+    let currentModel: string | null = null;
+    if (config && config.Router && config.Router.default) {
+      currentModel = config.Router.default;
+    }
     
     if (!currentModel) {
       const infoMessage = createInfoMessage(
