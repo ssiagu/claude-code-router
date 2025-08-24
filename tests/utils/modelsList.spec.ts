@@ -119,8 +119,8 @@ describe('Model List Tests', () => {
       const result = await showAvailableModels();
       
       expect(result.success).toBe(false);
-      expect(result.message).toContain('⚠️ 未找到可用模型');
-      expect(result.message).toContain('请检查配置文件');
+      expect(result.message).toContain('ℹ️ 未找到可用模型');
+      expect(result.message).toContain('请检查 Providers 数组包含有效的提供商和模型信息');
     });
     
     it('should handle missing providers property', async () => {
@@ -130,7 +130,7 @@ describe('Model List Tests', () => {
       const result = await showAvailableModels();
       
       expect(result.success).toBe(false);
-      expect(result.message).toContain('⚠️ 未找到可用模型');
+      expect(result.message).toContain('ℹ️ 未找到可用模型');
     });
     
     it('should handle providers with empty models', async () => {
@@ -162,7 +162,7 @@ describe('Model List Tests', () => {
       const result = await showAvailableModels();
       
       expect(result.success).toBe(false);
-      expect(result.message).toContain('⚠️ 无法读取配置文件');
+      expect(result.message).toContain('❌ 错误: 未知错误');
       expect(result.message).toContain('File not found');
     });
     
@@ -235,9 +235,9 @@ describe('Model List Tests', () => {
     
     it('should handle large model lists efficiently', async () => {
       // 创建大量提供商和模型的配置
-      const providers = [];
+      const providers: any[] = [];
       for (let i = 0; i < 10; i++) {
-        const models = [];
+        const models: string[] = [];
         for (let j = 0; j < 20; j++) {
           models.push(`model-${i}-${j}`);
         }
