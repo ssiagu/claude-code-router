@@ -187,30 +187,89 @@ export const removeModelCommandMessage = (messages: any[]): any[] => {
 };
 
 /**
- * 生成模型切换成功的响应
+ * 将/model命令替换为成功消息
+ * @param messages - 消息数组
  * @param provider - 提供商名称
  * @param model - 模型名称
- * @returns 成功响应对象
+ * @returns 更新后的消息数组
  */
-export const generateModelSwitchResponse = (provider: string, model: string) => {
-  return {
-    id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-    type: "message",
-    role: "assistant",
-    content: [
-      {
-        type: "text",
-        text: `✅ 已成功切换到模型: ${provider}/${model}`
+export const replaceModelCommandWithSuccess = (messages: any[], provider: string, model: string): any[] => {
+  if (!Array.isArray(messages)) {
+    return messages;
+  }
+
+  try {
+    // 找到包含/model命令的最后一条用户消息
+    const updatedMessages = [...messages];
+    
+    for (let i = updatedMessages.length - 1; i >= 0; i--) {
+      const message = updatedMessages[i];
+      
+      if (message.role !== 'user' || !message.content) {
+        continue;
       }
-    ],
-    model: `${provider},${model}`,
-    stop_reason: "end_turn",
-    stop_sequence: null,
-    usage: {
-      input_tokens: 0,
-      output_tokens: 12 // 大约的token数量
+
+      let messageContent: string;
+      if (typeof message.content === 'string') {
+        messageContent = message.content.trim();
+      } else if (Array.isArray(message.content)) {
+        const textContent = message.content.find((c: any) => c.type === 'text');
+        if (!textContent?.text) {
+          continue;
+        }
+        messageContent = textContent.text.trim();
+      } else {
+        continue;
+      }
+
+      // 检查是否包含/model命令
+      if (messageContent.startsWith('/model ')) {
+        // 替换为成功消息
+        const successMessage = `✅ 已成功切换到模型: ${provider}/${model}`;
+        
+        if (typeof message.content === 'string') {
+          // 如果原始消息只有/model命令，直接替换
+          if (messageContent.trim() === messageContent.match(/^\/model\s+[^,\s]+\s*,\s*.+$/)?.[0]) {
+            updatedMessages[i] = {
+              ...message,
+              content: successMessage
+            };
+          } else {
+            // 如果还有其他内容，只替换/model部分
+            updatedMessages[i] = {
+              ...message,
+              content: messageContent.replace(/\/model\s+[^,\s]+\s*,\s*.+/, successMessage)
+            };
+          }
+        } else if (Array.isArray(message.content)) {
+          // 处理数组格式的content
+          const newContent = message.content.map((c: any) => {
+            if (c.type === 'text' && c.text.trim().startsWith('/model ')) {
+              return {
+                ...c,
+                text: c.text.replace(/\/model\s+[^,\s]+\s*,\s*.+/, successMessage)
+              };
+            }
+            return c;
+          });
+          
+          updatedMessages[i] = {
+            ...message,
+            content: newContent
+          };
+        }
+        
+        break; // 只处理最后一个/model命令
+      }
     }
-  };
+
+    return updatedMessages;
+
+  } catch (error: any) {
+    log('Error replacing model command with success:', error.message);
+    // 如果发生错误，返回原始消息数组
+    return messages;
+  }
 };
 
 /**

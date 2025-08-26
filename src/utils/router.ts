@@ -1,16 +1,29 @@
-import {
-  MessageCreateParamsBase,
-  MessageParam,
-  Tool,
-} from "@anthropic-ai/sdk/resources/messages";
+// 定义类型接口
+interface MessageParam {
+  role: string;
+  content: string | Array<{ type: string; text?: string; input?: any; content?: any }>;
+}
+
+interface Tool {
+  name: string;
+  description?: string;
+  input_schema?: any;
+}
+
+interface MessageCreateParamsBase {
+  messages: MessageParam[];
+  system?: any;
+  tools?: Tool[];
+}
 import { get_encoding } from "tiktoken";
 import { log } from "./log";
-import { sessionUsageCache, Usage } from "./cache";
+import { sessionUsageCache, Usage, setSessionModel, getSessionModel, hasSessionModel } from "./cache";
 import {
   parseModelCommand,
   validateModelExists,
   getAvailableModels,
-  removeModelCommandMessage
+  removeModelCommandMessage,
+  replaceModelCommandWithSuccess
 } from "../middleware/commandParser";
 
 const enc = get_encoding("cl100k_base");
@@ -154,7 +167,38 @@ export const router = async (req: any, _res: any, config: any) => {
     }
   }
 
-  // 🆕 处理/model命令
+  // 🆕 Check for existing session model override first
+  if (req.sessionId && hasSessionModel(req.sessionId)) {
+    const sessionState = getSessionModel(req.sessionId);
+    if (sessionState) {
+      log('Using session model override:', sessionState.model);
+      req.body.model = sessionState.model;
+      // Check if this request has a new /model command
+      const modelCommand = parseModelCommand(req, config);
+      if (modelCommand) {
+        // Process new model command to update session state
+        if (validateModelExists(modelCommand.provider, modelCommand.model, config)) {
+          const targetModel = `${modelCommand.provider},${modelCommand.model}`;
+          setSessionModel(req.sessionId, targetModel, 'command');
+          req.body.model = targetModel;
+          
+          // Replace /model command with success message
+          req.body.messages = replaceModelCommandWithSuccess(req.body.messages, modelCommand.provider, modelCommand.model);
+          
+          log('Session model updated to:', targetModel);
+          return;
+        } else {
+          // Model doesn't exist, throw error
+          const availableModels = getAvailableModels(config);
+          const errorMessage = `模型 ${modelCommand.provider},${modelCommand.model} 在配置中不存在。\n\n可用的模型：\n${availableModels}`;
+          throw new Error(errorMessage);
+        }
+      }
+      return; // Use existing session model
+    }
+  }
+
+  // 🆕 处理/model命令 (for new sessions or first-time commands)
   try {
     const modelCommand = parseModelCommand(req, config);
     if (modelCommand) {
@@ -163,10 +207,16 @@ export const router = async (req: any, _res: any, config: any) => {
       // 验证模型是否存在
       if (validateModelExists(modelCommand.provider, modelCommand.model, config)) {
         const targetModel = `${modelCommand.provider},${modelCommand.model}`;
+        
+        // Store in session cache for persistence
+        if (req.sessionId) {
+          setSessionModel(req.sessionId, targetModel, 'command');
+        }
+        
         req.body.model = targetModel;
         
-        // 从消息中移除/model命令，避免发送给AI模型
-        req.body.messages = removeModelCommandMessage(req.body.messages);
+        // Replace /model command with success message
+        req.body.messages = replaceModelCommandWithSuccess(req.body.messages, modelCommand.provider, modelCommand.model);
         
         log('Model switched to:', targetModel);
         return;

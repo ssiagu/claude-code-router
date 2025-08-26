@@ -136,13 +136,27 @@ async function run(options: RunOptions = {}) {
       } catch (error: any) {
         // 处理/model命令相关的错误
         if (error.message && (error.message.includes('模型') || error.message.includes('命令格式错误'))) {
-          reply.code(400).send({
-            type: "error",
-            error: {
-              type: "invalid_request_error",
-              message: error.message
+          // 生成符合 Claude API 格式的错误响应
+          const errorResponse = {
+            id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            type: "message",
+            role: "assistant",
+            content: [
+              {
+                type: "text",
+                text: `❌ ${error.message}`
+              }
+            ],
+            model: req.body.model || "unknown",
+            stop_reason: "end_turn",
+            stop_sequence: null,
+            usage: {
+              input_tokens: 0,
+              output_tokens: Math.ceil(error.message.length / 4) // 估算token数量
             }
-          });
+          };
+          
+          reply.code(200).send(errorResponse);
           return;
         }
         // 其他错误继续抛出
